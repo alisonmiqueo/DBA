@@ -1,4 +1,4 @@
-# Mi camino a DBA
+# Mi camino DBA
 
 Repositorio donde documento trabajando con SQL Server y MySQL.
 
