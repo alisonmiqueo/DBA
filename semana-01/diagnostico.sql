@@ -174,3 +174,41 @@ SELECT territorio, nombre, apellido, total, posicion
 FROM ranking
 WHERE posicion <= 3
 ORDER BY territorio, posicion;
+
+/*
+Desafío integrador
+
+Consigna: para cada categoría de producto (ProductSubcategory), 
+mostrar solo los 2 productos con mayor precio de lista (ListPrice), 
+pero excluyendo las categorías que tengan menos de 5 productos en total.
+
+Esto te obliga a combinar, en una sola consulta:
+
+GROUP BY + HAVING (para descartar categorías chicas)
+Una CTE
+PARTITION BY con ROW_NUMBER() (para el top 2 por categoría)
+Cuidado con los alias, ya que vas a tener varias tablas
+*/
+
+use AdventureWorks2022
+
+with categoria_producto as (
+select p.ProductID as ID,
+p.Name as producto, 
+s.Name as categoria, 
+p.ListPrice as precio,
+COUNT(p.ProductID) OVER (PARTITION BY s.Name) as productos_en_categoria
+from Production.Product as p
+inner join Production.ProductSubcategory as s
+on p.ProductSubcategoryID = s.ProductSubcategoryID
+),
+ranking AS (
+select ID, producto,categoria, precio,
+ROW_NUMBER() over(partition by categoria order by precio desc) as posicion
+from categoria_producto
+where productos_en_categoria > 5
+)
+SELECT ID, producto,categoria, precio, posicion
+FROM ranking
+WHERE posicion <= 2
+ORDER BY categoria, posicion;
