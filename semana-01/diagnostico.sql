@@ -212,3 +212,177 @@ SELECT ID, producto,categoria, precio, posicion
 FROM ranking
 WHERE posicion <= 2
 ORDER BY categoria, posicion;
+
+-- pracrica 3
+
+/*
+Ejercicio 1 — CASE WHEN (clasificación de datos)
+
+Clasificá cada producto según su precio: "Económico" si ListPrice es menor a 50, 
+"Medio" si está entre 50 y 500, y "Premium" si es mayor a 500. 
+Mostrá Name, ListPrice y la categoría.
+
+Pista mínima: se usa CASE WHEN ... THEN ... ELSE ... END como si fuera una columna más del SELECT.
+*/
+
+select 
+p.ProductID,
+p.Name as producto,
+p.ListPrice as precio,
+case 
+when p.ListPrice = 0 then 'No disponible'
+when p.ListPrice < 50 then 'Economico'
+when p.ListPrice between 50 and 500 then 'Medio'
+else 'Premium' END as categoria
+from Production.Product as p
+
+
+/*
+Ejercicio 2 — Funciones de fecha
+
+¿Cuántas órdenes de venta se hicieron por cada mes del año 2013? 
+Mostrá el mes (como número o nombre) y la cantidad de órdenes, ordenado cronológicamente.
+*/
+
+select 
+year(sales.OrderDate) as anio,
+MONTH(sales.OrderDate) as mes,
+COUNT(sales.SalesOrderID) as cantidad
+from Sales.SalesOrderHeader as sales
+where year(sales.OrderDate) = 2013
+group by year(sales.OrderDate), MONTH(sales.OrderDate)
+order by mes
+
+/*
+Ejercicio 3 — Self-join (tabla contra sí misma)
+
+HumanResources.Employee no tiene jefe directo en esa tabla, 
+pero Person.Person sí tiene una estructura de organización en otras tablas... en cambio, 
+hay algo más simple: en Sales.SalesPerson, cada vendedor tiene un TerritoryID. 
+Encontrá pares de vendedores que trabajen en el mismo territorio 
+(sin que se repita el mismo par al revés, y sin que un vendedor se empareje consigo mismo).
+
+*/
+
+select
+p.BusinessEntityID as ID,
+p.FirstName as nombre,
+p.LastName as apellido,
+vendedor.TerritoryID as territorio
+from Person.Person as p
+inner join Sales.SalesPerson as vendedor
+on p.BusinessEntityID = vendedor.BusinessEntityID
+
+SELECT 
+    p1.BusinessEntityID AS vendedor1,
+    p2.BusinessEntityID AS vendedor2,
+    p1.TerritoryID AS territorio
+FROM Sales.SalesPerson AS p1
+INNER JOIN Sales.SalesPerson AS p2
+    ON p1.TerritoryID = p2.TerritoryID
+    AND p1.BusinessEntityID < p2.BusinessEntityID
+
+SELECT TerritoryID, COUNT(*) AS cantidad_vendedores
+FROM Sales.SalesPerson
+GROUP BY TerritoryID
+ORDER BY TerritoryID;
+
+SELECT 
+    p1.BusinessEntityID AS vendedor1_id,
+    per1.FirstName + ' ' + per1.LastName AS vendedor1_nombre,
+    p2.BusinessEntityID AS vendedor2_id,
+    per2.FirstName + ' ' + per2.LastName AS vendedor2_nombre,
+    p1.TerritoryID AS territorio
+FROM Sales.SalesPerson AS p1
+INNER JOIN Sales.SalesPerson AS p2
+    ON p1.TerritoryID = p2.TerritoryID
+    AND p1.BusinessEntityID < p2.BusinessEntityID
+INNER JOIN Person.Person AS per1
+    ON p1.BusinessEntityID = per1.BusinessEntityID
+INNER JOIN Person.Person AS per2
+    ON p2.BusinessEntityID = per2.BusinessEntityID;
+
+/*
+Ejercicio 4 — Múltiples niveles de agregación
+
+¿Cuál es el producto más vendido (por cantidad) dentro de cada categoría (ProductSubcategory)? 
+Mostrá una sola fila por categoría, con el nombre del producto ganador y la cantidad vendida.
+
+Pensalo con la misma familia de herramientas del "top 3 por territorio" que ya resolviste, pero acá querés solo el número 1 de cada grupo.
+*/
+
+with ventas_categoria as(
+select
+p.name as producto,
+s.Name as categoria,
+ SUM(det.OrderQty) as cantidad_vendida
+from Production.Product as p 
+inner join Production.ProductSubcategory as s
+on p.ProductSubcategoryID = s.ProductSubcategoryID
+inner join Sales.SalesOrderDetail as det
+        on p.ProductID = det.ProductID
+group by p.name,s.Name 
+),
+ranking AS (
+    SELECT 
+        producto,categoria,cantidad_vendida,
+        ROW_NUMBER() OVER (PARTITION BY categoria ORDER BY cantidad_vendida DESC) AS posicion
+    FROM ventas_categoria
+)
+SELECT producto,categoria,cantidad_vendida, posicion
+FROM ranking
+WHERE posicion = 1
+ORDER BY categoria, posicion;
+
+/*
+Ejercicio 5 — El más difícil: comparación entre períodos
+
+Para cada vendedor (SalesPerson), calculá el total vendido en 2013 y el total vendido en 2014, en la misma fila, 
+y una columna con la diferencia entre ambos años. 
+Los vendedores que no vendieron nada en alguno de los dos años deberían mostrar 0, no desaparecer del resultado.
+
+Pista: acá vas a necesitar pensar en SUM combinado con CASE WHEN dentro del mismo agregado, 
+algo como "sumá esto solo si se cumple tal condición" — es una técnica muy usada en reportes reales.
+*/
+
+SELECT 
+    p.BusinessEntityID AS vendedor,
+
+    SUM(
+        CASE
+            WHEN YEAR(ventas.OrderDate) = 2013
+            THEN ventas.TotalDue
+            ELSE 0
+        END
+    ) AS ventas_2013,
+
+    SUM(
+        CASE
+            WHEN YEAR(ventas.OrderDate) = 2014
+            THEN ventas.TotalDue
+            ELSE 0
+        END
+    ) AS ventas_2014,
+
+    SUM(
+        CASE
+            WHEN YEAR(ventas.OrderDate) = 2014
+            THEN ventas.TotalDue
+            ELSE 0
+        END
+    )
+    -
+    SUM(
+        CASE
+            WHEN YEAR(ventas.OrderDate) = 2013
+            THEN ventas.TotalDue
+            ELSE 0
+        END
+    ) AS diferencia
+
+FROM Sales.SalesPerson AS p
+
+LEFT JOIN Sales.SalesOrderHeader AS ventas
+    ON p.BusinessEntityID = ventas.SalesPersonID
+
+GROUP BY p.BusinessEntityID;
