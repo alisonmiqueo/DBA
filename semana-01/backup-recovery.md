@@ -64,12 +64,6 @@ drop database LabRecovery;
 
 ## la recuperacion
 
--- capturar todo lo que hay en el momento antes de empezar a restaurar
-/*
-— incluidas las transacciones buenas que pasaron después del error. Así no perdés ese tramo por completo, queda guardado en un archivo aparte.
-*/
-BACKUP LOG LabRecovery TO DISK = 'C:\Backup\tail_log.trn' WITH NORECOVERY;
-
 -- restaurar backup full sin cerrar
 -- NORECOVERY le dice a SQL Server todavía faltan más archivos por aplicar, no cierres la restauración
 
